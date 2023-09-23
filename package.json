@@ -1,0 +1,9 @@
+{
+  "name": "discord-plexamp-status",
+  "version": "1.0.0",
+  "dependencies": {
+    "discord-rpc": "^4.0.1",
+    "superagent": "^8.1.2"
+  },
+  "type": "module"
+}
