@@ -1,17 +1,24 @@
 import superagent from 'superagent';
-import RPC from 'discord-rpc';
 import fs from 'node:fs';
 import path from 'node:path';
+import {WebsocketShard} from 'tiny-discord';
 
 const {
     'Tautulli Host': apiHost,
     'Tautulli Key': apiKey,
     'Plex Username': plexUsername,
+    'Discord Token': token
 } = JSON.parse(
     fs.readFileSync(path.join(process.cwd(), 'config.json'), 'utf-8')
 );
 
 let previousSong = {};
+
+const clientId = '1056711409817362452';
+const websocket = new WebsocketShard({
+    token,
+    intents: 0,
+})
 
 const print = (...args) => console.log(`[${new Date().toLocaleTimeString()}]`, ...args);
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
@@ -36,13 +43,65 @@ const getPlexActivies = () => new Promise(resolve => {
 });
 const getImageURL = (url) => `${apiHost}/pms_image_proxy?img=${encodeURIComponent(url)}`;
 
+const fetchDiscordThumbnail = url => new Promise(resolve => {
+    superagent('POST', `https://discord.com/api/v9/applications/${clientId}/external-assets`)
+        .set('user-agent', 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:109.0) Gecko/20100101 Firefox/117.0')
+        .set('content-type', 'application/json')
+        .set('authorization', token)
+        .send({
+            urls: [url]
+        })
+        .then(resp => {
+            return resolve(resp.body[0].external_asset_path);
+        })
+        .catch(error => {
+            print('Failed to fetch presence thumbnail from Discord',
+                error.response ? error.response.text : error);
+
+            return resolve();
+        })
+})
 const setDiscordStatus = async (status) => {
     try {
-        await rpc.setActivity(status);
+        // https://github.com/Vendicated/Vencord/blob/main/src/plugins/lastfm/index.tsx
+        const body = {
+            op: 3,
+            d: {
+                status: 'idle',
+                since: 0,
+                activities: [{
+                    application_id: clientId,
+
+                    ...status,
+
+                    type: 2,
+                    flags: 1
+                }],
+                afk: false
+            }
+        }
+
+        await websocket.send(body);
     } catch (error) {
         print('Failed to set Discord status:', error);
     }
+};
+const clearDiscordStatus = async () => {
+    try {
+        await websocket.send({
+            op: 3,
+            d: {
+                status: 'idle',
+                since: 0,
+                activities: [],
+                afk: false
+            }
+        })
+    } catch (error) {
+        print('Failed to clear Discord status:', error);
+    }
 }
+
 const fetchActivitiesAndUpdate = async () => {
     const activies = await getPlexActivies();
     if (!activies || !activies.sessions) return;
@@ -70,52 +129,61 @@ const fetchActivitiesAndUpdate = async () => {
         previousSong.title === title &&
         previousSong.parent_title === parent_title &&
         previousSong.state === state &&
-        Math.abs(previousSong.progress_percent - progress_percent) < 10
+        Math.abs(previousSong.progress_percent - progress_percent) < 25
     ) {
         previousSong.progress_percent = progress_percent;
         return;
     }
 
+    if (progress_percent === 100)
+        return await clearDiscordStatus();
+
     previousSong = session;
 
     const listeningDuration = duration * (progress_percent / 100);
-    const formattedThumbnail = getImageURL(thumb);
+    const rawThumbnailURL = getImageURL(thumb);
+    const formattedThumbnail = await fetchDiscordThumbnail(rawThumbnailURL);
 
     print(`${state} ${title} on ${parent_title} (${year}) by ${grandparent_title}`);
 
     await setDiscordStatus({
-        details: `${title.trim()} (${year})`,
+        name: 'Plexamp',
+        details: `${title.trim()}`,
         state: `by ${grandparent_title.trim()}`,
-        endTimestamp:
-            state === 'playing' ?
-                Math.floor((Date.now() + (duration - listeningDuration))) :
-                null,
-        largeImageKey: formattedThumbnail,
-        largeImageText: `${parent_title.trim()} (${year})`,
-        smallImageKey:
-            state === 'playing' ? null : 'pause',
-        smallImageText:
-            state === 'playing' ? 'Playing' : 'Paused',
+
+        timestamps: {
+            end:
+                state === 'playing' ?
+                    Math.floor((Date.now() + (duration - listeningDuration))) :
+                    null,
+        },
+
+        assets: {
+            large_image: `mp:${formattedThumbnail}`,
+            large_text: `${parent_title.trim()} (${year})`,
+            small_image:
+                state === 'playing' ? null : '1155215268277129297',
+            small_text:
+                state === 'playing' ? 'Playing' : 'Paused',
+        },
     })
 };
 
-const clientId = '1056711409817362452';
-const rpc = new RPC.Client({ transport: 'ipc' });
+websocket.on('ready', async ready => {
+    const {user} = ready.data;
+    print(`Connected to Discord RPC successfully as @${user.username}`);
 
-rpc.on('ready', async () => {
-    print(`Connected to Discord RPC successfully as ${rpc.user.username}#${rpc.user.discriminator}`);
-
-    for (;;) {
+    for (; ;) {
         await fetchActivitiesAndUpdate();
-        await sleep(1000);
+        await sleep(5000);
     }
 });
 
-rpc.on('disconnected', () => {
-    print('Disconnected from Discord RPC');
+websocket.on('close', error => {
+    print('Disconnected from Discord RPC:', error);
     process.exit(1);
 });
 
-rpc.login({
-    clientId,
-}).catch(console.error);
+websocket
+    .connect()
+    .catch(console.error);

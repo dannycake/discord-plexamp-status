@@ -1,6 +1,7 @@
 {
-  "Tautulli Key": "abcdefg123123123123",
-  "Tautulli Host": "http://localhost:8181",
+  "Tautulli Key": "abcdef",
+  "Tautulli Host": "https://example.com",
 
-  "Plex Username": "ddaannnnyy"
+  "Plex Username": "ddaannnnyy",
+  "Discord Token": "abc.abc.abcabcabcabcabc"
 }
