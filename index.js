@@ -41,7 +41,8 @@ const getPlexActivies = () => new Promise(resolve => {
             return resolve();
         })
 });
-const getImageURL = (url) => `${apiHost}/pms_image_proxy?img=${encodeURIComponent(url)}`;
+const getImageURL = (url) =>
+    `${apiHost}/pms_image_proxy?img=${encodeURIComponent(url)}&width=300&height=300&fallback=cover`;
 
 const fetchDiscordThumbnail = url => new Promise(resolve => {
     superagent('POST', `https://discord.com/api/v9/applications/${clientId}/external-assets`)
@@ -109,7 +110,7 @@ const fetchActivitiesAndUpdate = async () => {
     const session = activies.sessions.find(session => session.user === plexUsername);
     if (!session) return;
 
-    const {
+    let {
         state, // playing, paused
         title, // name of song
         parent_title, // name of album
@@ -124,6 +125,7 @@ const fetchActivitiesAndUpdate = async () => {
     } = session;
 
     if (media_type !== 'track') return;
+    if (!year) year = 'XXXX';
 
     if (
         previousSong.title === title &&
@@ -142,6 +144,7 @@ const fetchActivitiesAndUpdate = async () => {
 
     const listeningDuration = duration * (progress_percent / 100);
     const rawThumbnailURL = getImageURL(thumb);
+    // print(rawThumbnailURL);
     const formattedThumbnail = await fetchDiscordThumbnail(rawThumbnailURL);
 
     print(`${state} ${title} on ${parent_title} (${year}) by ${grandparent_title}`);
@@ -149,7 +152,7 @@ const fetchActivitiesAndUpdate = async () => {
     await setDiscordStatus({
         name: 'Plexamp',
         details: `${title.trim()}`,
-        state: `by ${grandparent_title.trim()}`,
+        state: `${grandparent_title.trim()}`,
 
         timestamps: {
             end:
@@ -160,7 +163,7 @@ const fetchActivitiesAndUpdate = async () => {
 
         assets: {
             large_image: `mp:${formattedThumbnail}`,
-            large_text: `${parent_title.trim()} (${year})`,
+            large_text: `${parent_title.trim()}`,
             small_image:
                 state === 'playing' ? null : '1155215268277129297',
             small_text:
@@ -171,6 +174,7 @@ const fetchActivitiesAndUpdate = async () => {
 
 websocket.on('ready', async ready => {
     const {user} = ready.data;
+    if (!user) return;
     print(`Connected to Discord RPC successfully as @${user.username}`);
 
     for (; ;) {
