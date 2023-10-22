@@ -42,7 +42,7 @@ const getPlexActivies = () => new Promise(resolve => {
         })
 });
 const getImageURL = (url) =>
-    `${apiHost}/pms_image_proxy?img=${encodeURIComponent(url)}&width=300&height=300&fallback=cover`;
+    `${apiHost}/pms_image_proxy?img=${encodeURIComponent(url)}&width=300&height=300&opacity=100&background=282828&fallback=cover&refresh=true`;
 
 const fetchDiscordThumbnail = url => new Promise(resolve => {
     superagent('POST', `https://discord.com/api/v9/applications/${clientId}/external-assets`)
@@ -179,7 +179,7 @@ websocket.on('ready', async ready => {
 
     for (; ;) {
         await fetchActivitiesAndUpdate();
-        await sleep(5000);
+        await sleep(3000);
     }
 });
 
