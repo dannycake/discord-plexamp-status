@@ -42,7 +42,8 @@ const getPlexActivies = () => new Promise(resolve => {
         })
 });
 const getImageURL = (url) =>
-    `${apiHost}/pms_image_proxy?img=${encodeURIComponent(url)}&width=300&height=300&opacity=100&background=282828&fallback=cover&refresh=true`;
+    //?img=%2Flibrary%2Fmetadata%2F244620%2Fthumb%2F1698456388&rating_key=244620&width=300&height=300&fallback=cover&refresh=true
+    `${apiHost}/pms_image_proxy?img=${encodeURIComponent(url)}&width=300&height=300&opacity=100&background=${Math.random()}&fallback=cover&refresh=true`;
 
 const fetchDiscordThumbnail = url => new Promise(resolve => {
     superagent('POST', `https://discord.com/api/v9/applications/${clientId}/external-assets`)
