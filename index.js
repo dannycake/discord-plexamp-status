@@ -41,6 +41,99 @@ const getPlexActivities = () => new Promise(resolve => {
             return resolve();
         })
 });
+
+const textDifference = (a, b) => {
+    const longer = a.length > b.length ? a : b;
+    const shorter = a.length > b.length ? b : a;
+
+    const longerLength = longer.length;
+    if (longerLength === 0) return 1.0;
+
+    return (longerLength - editDistance(longer, shorter)) / longerLength;
+}
+
+const editDistance = (a, b) => {
+    a = a.toLowerCase();
+    b = b.toLowerCase();
+
+    const costs = [];
+    for (let i = 0; i <= a.length; i++) {
+        let lastValue = i;
+        for (let j = 0; j <= b.length; j++) {
+            if (i === 0) costs[j] = j;
+            else {
+                if (j > 0) {
+                    let newValue = costs[j - 1];
+                    if (a.charAt(i - 1) !== b.charAt(j - 1))
+                        newValue = Math.min(Math.min(newValue, lastValue),
+                            costs[j]) + 1;
+                    costs[j - 1] = lastValue;
+                    lastValue = newValue;
+                }
+            }
+        }
+        if (i > 0) costs[b.length] = lastValue;
+    }
+    return costs[b.length];
+}
+
+const searchSpotifyMetadata = (artist, track, album) => new Promise(resolve => {
+    superagent('GET', 'https://api-partner.spotify.com/pathfinder/v1/query')
+        .query({
+            operationName: 'searchDesktop',
+            variables: JSON.stringify({
+                searchTerm: `${artist} ${track.split(' (')[0]} ${album.split(' (')[0]}`,
+                offset: 0,
+                limit: 10,
+                numberOfTopResults: 5,
+                includeAudiobooks: true
+            }),
+            extensions: JSON.stringify({
+                persistedQuery: {
+                    version: 1,
+                    sha256Hash: "21969b655b795601fb2d2204a4243188e75fdc6d3520e7b9cd3f4db2aff9591e"
+                }
+            })
+        })
+        .set('accept', 'application/json')
+        .set('authorization', 'Bearer BQAsNKE-8leJkKS8dXtgzYraGapRohLNKEaMsgLdWnew0bNZ8VV8776S0yafIo2XzKWBmb_P7U9KPpMFJGdYM95MN1vOZ5GrvrAI2-Rut4IuJ-6K5hg')
+        .then(resp => {
+            for (const {item: {data}} of resp.body.data.searchV2.tracksV2.items) {
+
+                const artistNames = data.artists.items.map(artist => artist.profile.name);
+
+                const artistDifference = artistNames
+                        .map(artistName => textDifference(artistName, artist))
+                        .sort((a, b) => b - a)[0];
+                const trackDifference = textDifference(track, data.name);
+
+                if (artistDifference < 0.8 && trackDifference < 0.8)
+                    continue;
+
+                return resolve({
+                    sync_id: data.id,
+                    metadata: {
+                        context_uri: data.albumOfTrack.uri,
+                        album_id: data.albumOfTrack.id,
+                        artist_ids:
+                            data.artists.items
+                                .map(artist => artist.uri
+                                    .split(':').pop()),
+                    },
+                    state: data.artists.items.map(artist => artist.profile.name).slice(0, 3).join(', '),
+                    details: data.name,
+                    large_text: data.albumOfTrack.name,
+                });
+            }
+        })
+        .catch(error => {
+            print('Failed to fetch Spotify metadata',
+                error.response ? error.response.text : error);
+
+            return resolve();
+        })
+});
+
 const getImageURL = (url) =>
     //?img=%2Flibrary%2Fmetadata%2F244620%2Fthumb%2F1698456388&rating_key=244620&width=300&height=300&fallback=cover&refresh=true
     `${apiHost}/pms_image_proxy?img=${encodeURIComponent(url)}&width=300&height=300&opacity=100&background=${Math.random()}&fallback=cover&refresh=true`;
@@ -72,12 +165,12 @@ const setDiscordStatus = async (status) => {
                 status: 'idle',
                 since: 0,
                 activities: [{
-                    application_id: clientId,
+                    // application_id: clientId,
 
                     ...status,
 
                     type: 2,
-                    flags: 1
+                    flags: 48
                 }],
                 afk: false
             }
@@ -157,52 +250,57 @@ const fetchActivitiesAndUpdate = async () => {
 
     const listeningDuration = duration * (progress_percent / 100);
     const rawThumbnailURL = getImageURL(thumb);
-    // print(rawThumbnailURL);
     const formattedThumbnail = await fetchDiscordThumbnail(rawThumbnailURL);
 
     print(`${state} ${title} on ${parent_title} (${year}) by ${grandparent_title}`);
+    if (state === 'paused') {
+        return await clearDiscordStatus();
+    }
+
+    const metadata = await searchSpotifyMetadata(grandparent_title, title, parent_title);
+
+    const assets = {
+        large_image: `mp:${formattedThumbnail}`,
+        large_text: `${parent_title.trim()}`,
+    };
+
+    if (metadata.large_text) {
+        assets.large_text = metadata.large_text;
+        delete metadata.large_text;
+    }
 
     await setDiscordStatus({
-        name: 'Plexamp',
+        type: 2,
+        name: 'Spotify',
+
+        assets,
         details: `${title.trim()}`,
         state: `${grandparent_title.trim()}`,
 
+        party: {
+            id: `spotify:${user.id}`
+        },
+        sync_id: 'this-isnt-spotify.',
+
         timestamps: {
-            end:
-                state === 'playing' ?
-                    Math.floor((Date.now() + (duration - listeningDuration))) :
-                    null,
+            start: Math.floor(Date.now()) - listeningDuration,
+            end: Math.floor(Date.now()) + (duration - listeningDuration)
         },
 
-        assets: {
-            large_image: `mp:${formattedThumbnail}`,
-            large_text: `${parent_title.trim()}`,
-            small_image:
-                state === 'playing' ? null : '1155215268277129297',
-            small_text:
-                state === 'playing' ? 'Playing' : 'Paused',
-        },
-
-        buttons: [
-            'View on Last.FM',
-        ],
-
-        metadata: {
-            button_urls: [
-                parseToLastFmUrl(grandparent_title, parent_title)
-            ]
-        }
+        ...metadata
     })
 };
 
+let user;
 websocket.on('ready', async ready => {
-    const {user} = ready.data;
+    user = ready.data.user;
     if (!user) return;
+
     print(`Connected to Discord RPC successfully as @${user.username}`);
 
     for (; ;) {
         await fetchActivitiesAndUpdate();
-        await sleep(3000);
+        await sleep(1000);
     }
 });
 
