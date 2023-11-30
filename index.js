@@ -12,7 +12,7 @@ const {
     fs.readFileSync(path.join(process.cwd(), 'config.json'), 'utf-8')
 );
 
-const SEARCH_INSTANCE = 'http://localhost:3000/search';
+const SEARCH_INSTANCE = 'https://spotify-search.danny.ink/search';
 
 let previousSong = {};
 
@@ -283,8 +283,8 @@ const fetchActivitiesAndUpdate = async () => {
 
 let user;
 websocket.on('ready', async ready => {
+    if (!ready.data.user) return;
     user = ready.data.user;
-    if (!user) return;
 
     print(`Connected to Discord RPC successfully as @${user.username}`);
 
