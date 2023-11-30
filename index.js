@@ -23,7 +23,7 @@ const websocket = new WebsocketShard({
 const print = (...args) => console.log(`[${new Date().toLocaleTimeString()}]`, ...args);
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
 
-const getPlexActivies = () => new Promise(resolve => {
+const getPlexActivities = () => new Promise(resolve => {
     superagent('GET', `${apiHost}/api/v2`)
         .set('content-type', 'application/json')
         .query({
@@ -104,11 +104,23 @@ const clearDiscordStatus = async () => {
     }
 }
 
-const fetchActivitiesAndUpdate = async () => {
-    const activies = await getPlexActivies();
-    if (!activies || !activies.sessions) return;
+const convertComponent = (str) =>
+    str.replace(/[\u2018\u2019]/g, "'") // replace odd apostrophes with normal ones
+        .replace(/[\u201C\u201D]/g, '"') // replace double quotes
+        .replace(/[\u2018\u2019]/g, "'") // replace single quotes
+        .replace(/\u2026/g, "...") // replace ellipsis
+        .replace(/\u0026/g, "&") // replace ampersand
+        .replace(/\u2013/g, "-") // replace dash
+        .replace(/\s/g, '+') // replace spaces with plus
+const parseToLastFmUrl = (artist, album) => {
+    return `https://www.last.fm/music/${convertComponent(artist)}/${convertComponent(album)}`;
+}
 
-    const session = activies.sessions.find(session => session.user === plexUsername);
+const fetchActivitiesAndUpdate = async () => {
+    const activities = await getPlexActivities();
+    if (!activities || !activities.sessions) return;
+
+    const session = activities.sessions.find(session => session.user === plexUsername);
     if (!session) return;
 
     let {
@@ -170,6 +182,16 @@ const fetchActivitiesAndUpdate = async () => {
             small_text:
                 state === 'playing' ? 'Playing' : 'Paused',
         },
+
+        buttons: [
+            'View on Last.FM',
+        ],
+
+        metadata: {
+            button_urls: [
+                parseToLastFmUrl(grandparent_title, parent_title)
+            ]
+        }
     })
 };
 
