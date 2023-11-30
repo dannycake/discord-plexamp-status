@@ -1,7 +1,6 @@
-# discord-plexamp-status
- shows your plex music tracks on discord
+# plexamp status for discord
+shows your plex music tracks on discord as spotify with working listen along.
 
-
-
-![playing](https://github.com/mxmmxx/discord-plexamp-status/assets/102934335/37e3a3c0-9811-44e8-88db-8e334fb77616)
-![paused](https://github.com/mxmmxx/discord-plexamp-status/assets/102934335/3671637f-3fc9-4d9f-ac02-c5d2535f7a01)
+![raw](https://github.com/mxmmxx/discord-plexamp-status/assets/102934335/f0e482ea-9217-4964-a510-d679af379cc0)
+![raw](https://github.com/mxmmxx/discord-plexamp-status/assets/102934335/524800a7-f0b9-43c5-9072-e200eea5366f)
+![raw](https://github.com/mxmmxx/discord-plexamp-status/assets/102934335/55c5988a-e660-4c18-b4f4-16ed81624469)
