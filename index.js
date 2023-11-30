@@ -12,6 +12,8 @@ const {
     fs.readFileSync(path.join(process.cwd(), 'config.json'), 'utf-8')
 );
 
+const SEARCH_INSTANCE = 'http://localhost:3000/search';
+
 let previousSong = {};
 
 const clientId = '1056711409817362452';
@@ -35,7 +37,7 @@ const getPlexActivities = () => new Promise(resolve => {
                 resp.body?.response?.data);
         })
         .catch(error => {
-            print('Failed to fetch activities from Tautulli',
+            print('Failed to fetch activities from Tautulli:',
                 error.response ? error.response.text : error);
 
             return resolve();
@@ -78,59 +80,47 @@ const editDistance = (a, b) => {
 }
 
 const searchSpotifyMetadata = (artist, track, album) => new Promise(resolve => {
-    superagent('GET', 'https://api-partner.spotify.com/pathfinder/v1/query')
+    superagent('GET', SEARCH_INSTANCE)
         .query({
-            operationName: 'searchDesktop',
-            variables: JSON.stringify({
-                searchTerm: `${artist} ${track.split(' (')[0]} ${album.split(' (')[0]}`,
-                offset: 0,
-                limit: 10,
-                numberOfTopResults: 5,
-                includeAudiobooks: true
-            }),
-            extensions: JSON.stringify({
-                persistedQuery: {
-                    version: 1,
-                    sha256Hash: "21969b655b795601fb2d2204a4243188e75fdc6d3520e7b9cd3f4db2aff9591e"
-                }
-            })
+            q: `${artist} ${track.split(' (')[0]} ${album.split(' (')[0]}`,
         })
         .set('accept', 'application/json')
-        .set('authorization', 'Bearer BQAsNKE-8leJkKS8dXtgzYraGapRohLNKEaMsgLdWnew0bNZ8VV8776S0yafIo2XzKWBmb_P7U9KPpMFJGdYM95MN1vOZ5GrvrAI2-Rut4IuJ-6K5hg')
         .then(resp => {
-            for (const {item: {data}} of resp.body.data.searchV2.tracksV2.items) {
-
-                const artistNames = data.artists.items.map(artist => artist.profile.name);
+            for (const item of resp.body.tracks.items) {
+                const artistNames = item.artists.map(artist => artist.name);
 
                 const artistDifference = artistNames
                         .map(artistName => textDifference(artistName, artist))
                         .sort((a, b) => b - a)[0];
-                const trackDifference = textDifference(track, data.name);
+                const trackDifference = textDifference(track, item.name);
 
-                if (artistDifference < 0.8 && trackDifference < 0.8)
+                if (artistDifference < 0.8 || trackDifference < 0.8)
                     continue;
 
+                console.log(item.name, artistNames, artistDifference, trackDifference)
+
                 return resolve({
-                    sync_id: data.id,
+                    sync_id: item.id,
                     metadata: {
-                        context_uri: data.albumOfTrack.uri,
-                        album_id: data.albumOfTrack.id,
+                        context_uri: item.album.uri,
+                        album_id: item.album.id,
                         artist_ids:
-                            data.artists.items
-                                .map(artist => artist.uri
-                                    .split(':').pop()),
+                            item.artists.map(artist => artist.id),
                     },
-                    state: data.artists.items.map(artist => artist.profile.name).slice(0, 3).join(', '),
-                    details: data.name,
-                    large_text: data.albumOfTrack.name,
+                    state: item.artists.map(artist => artist.name).slice(0, 3).join(', '),
+                    details: item.name,
+                    large_text: item.album.name,
                 });
             }
+
+            print('No matching Spotify metadata found');
+            return resolve({});
         })
         .catch(error => {
-            print('Failed to fetch Spotify metadata',
+            print('Failed to fetch Spotify metadata:',
                 error.response ? error.response.text : error);
 
-            return resolve();
+            return resolve({});
         })
 });
 
@@ -150,7 +140,7 @@ const fetchDiscordThumbnail = url => new Promise(resolve => {
             return resolve(resp.body[0].external_asset_path);
         })
         .catch(error => {
-            print('Failed to fetch presence thumbnail from Discord',
+            print('Failed to fetch presence thumbnail from Discord:',
                 error.response ? error.response.text : error);
 
             return resolve();

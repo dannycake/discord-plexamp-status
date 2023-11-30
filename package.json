@@ -2,15 +2,17 @@
   "name": "discord-plexamp-status",
   "version": "1.0.0",
   "dependencies": {
+    "dotenv": "^16.3.1",
+    "express": "^4.18.2",
     "superagent": "^8.1.2",
     "tiny-discord": "github:mxmmxx/tiny-discord"
   },
   "type": "module",
   "description": "shows your plex music tracks on discord",
   "main": "index.js",
-  "devDependencies": {},
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "start": "node .",
+    "dev": "nodemon -r dotenv/config proxy.js"
   },
   "keywords": [],
   "author": "",
