@@ -264,8 +264,8 @@ const fetchActivitiesAndUpdate = async () => {
         name: 'Spotify',
 
         assets,
-        details: `${title.trim()}`,
-        state: `${grandparent_title.trim()}`,
+        details: title.trim(),
+        state: grandparent_title.trim(),
 
         party: {
             id: `spotify:${user.id}`
