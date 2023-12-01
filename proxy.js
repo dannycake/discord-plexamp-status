@@ -51,7 +51,7 @@ const preformSearch = (query) => new Promise(resolve => {
                 resolve();
             }
 
-            if (error.response.text.includes('Token expired')) {
+            if (error.response.text.includes('expired')) {
                 return getBearerToken()
                     .then(() => preformSearch(query))
                     .then(resolve);
