@@ -203,7 +203,7 @@ const fetchActivitiesAndUpdate = async () => {
     const activities = await getPlexActivities();
     if (!activities || !activities.sessions) return;
 
-    const session = activities.sessions.find(session => session.user === plexUsername);
+    const session = activities.sessions.reverse().find(session => session.user === plexUsername);
     if (!session) return;
 
     let {
